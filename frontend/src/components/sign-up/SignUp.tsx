@@ -2,7 +2,6 @@
 import * as React from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import Checkbox from '@mui/material/Checkbox';
 import CssBaseline from '@mui/material/CssBaseline';
 import Divider from '@mui/material/Divider';
 import FormControlLabel from '@mui/material/FormControlLabel';
@@ -22,6 +21,7 @@ import { GoogleIcon, SitemarkIcon } from './components/CustomIcons';
 
 import { signInWithPopup, User } from 'firebase/auth';
 import { auth, googleProvider } from '../../firebase';
+import  ApiRoute  from "../../api-constants";
 
 type UserType = 'customer' | 'provider';
 
@@ -34,8 +34,8 @@ interface SignUpValues {
   street: string;
   city: string;
   zipcode: string;
-  allowExtraEmails: boolean;
   provider: string;
+  idToken: string;
 }
 
 type SignUpErrors = Partial<Record<keyof SignUpValues, string>>;
@@ -45,11 +45,48 @@ interface MultiStepSignUpProps {
 }
 
 const Card = styled(MuiCard)(({ theme }) => ({
-  /* ... your styles ... */
+  display: 'flex',
+  flexDirection: 'column',
+  alignSelf: 'center',
+  width: '100%',
+  maxHeight: '90vh',
+  overflowY: 'auto',
+  padding: theme.spacing(3),
+  gap: theme.spacing(2),
+  margin: 'auto',
+  boxShadow:
+    'hsla(220, 30%, 5%, 0.05) 0px 5px 15px 0px, hsla(220, 25%, 10%, 0.05) 0px 15px 35px -5px',
+  [theme.breakpoints.up('sm')]: {
+    width: '450px',
+  },
+  ...theme.applyStyles('dark', {
+    boxShadow:
+      'hsla(220, 30%, 5%, 0.5) 0px 5px 15px 0px, hsla(220, 25%, 10%, 0.08) 0px 15px 35px -5px',
+  }),
 }));
 
 const SignUpContainer = styled(Stack)(({ theme }) => ({
-  /* ... your styles ... */
+  height: '100vh',
+  maxHeight: '100vh',
+  overflowY: 'auto',
+  padding: theme.spacing(2),
+  [theme.breakpoints.up('sm')]: {
+    padding: theme.spacing(3),
+  },
+  '&::before': {
+    content: '""',
+    display: 'block',
+    position: 'absolute',
+    zIndex: -1,
+    inset: 0,
+    backgroundImage:
+      'radial-gradient(ellipse at 50% 50%, hsl(210, 100%, 97%), hsl(0, 0%, 100%))',
+    backgroundRepeat: 'no-repeat',
+    ...theme.applyStyles('dark', {
+      backgroundImage:
+        'radial-gradient(at 50% 50%, hsla(210, 100%, 16%, 0.5), hsl(220, 30%, 5%))',
+    }),
+  },
 }));
 
 const MultiStepSignUp: React.FC<MultiStepSignUpProps> = (props) => {
@@ -63,8 +100,8 @@ const MultiStepSignUp: React.FC<MultiStepSignUpProps> = (props) => {
     street: '',
     city: '',
     zipcode: '',
-    allowExtraEmails: false,
     provider: '',
+    idToken: ''
   });
   const [errors, setErrors] = React.useState<SignUpErrors>({});
 
@@ -73,9 +110,7 @@ const MultiStepSignUp: React.FC<MultiStepSignUpProps> = (props) => {
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const value =
-      field === 'allowExtraEmails'
-        ? e.target.checked
-        : field === 'zipcode'
+        field === 'zipcode'
         ? e.target.value.replace(/\D/g, '')
         : (e.target.value as SignUpValues[K]);
 
@@ -124,6 +159,7 @@ const MultiStepSignUp: React.FC<MultiStepSignUpProps> = (props) => {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       const isGoogle = result.providerId === 'google.com';
+      const idToken = await user.getIdToken();
 
       setValues((prev) => ({
         ...prev,
@@ -131,6 +167,7 @@ const MultiStepSignUp: React.FC<MultiStepSignUpProps> = (props) => {
         email: user.email || '',
         password: '',
         provider: isGoogle ? 'google' : '',
+        idToken: idToken,
       }));
       setStep(2);
     } catch (err) {
@@ -142,11 +179,45 @@ const MultiStepSignUp: React.FC<MultiStepSignUpProps> = (props) => {
     e.preventDefault();
     if (!validateStep()) return;
 
-    const res = await fetch('http://localhost:5000/createUser', {
+
+    const newObject = {
+      email: values.email,
+      password: values.password,
+      name: values.name,
+      userType: values.userType,
+      phoneNumber: values.phone, 
+      address: {
+        street: values.street,
+        city: values.city,
+        zipCode: values.zipcode,
+      }
+    }
+
+    console.log(values);
+    const res = await fetch(ApiRoute.createUser, {
+      mode: 'cors',
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(values),
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      credentials: 'include',
+      body: JSON.stringify(newObject),
     });
+
+    const data = await res.json();
+    if (!res.ok) {
+      setErrors((prev) => ({ ...prev, server: data.message }));
+      return;
+    }
+    // Handle successful signup
+    console.log('User created successfully:', data);
+    // Redirect or show success message
+    // window.location.href = '/signin';
+    // or use a router to navigate
+    // router.push('/signin');
+
+
     // handle response...
   };
 
@@ -285,15 +356,6 @@ const MultiStepSignUp: React.FC<MultiStepSignUpProps> = (props) => {
                   helperText={errors.zipcode}
                   fullWidth
                   required
-                />
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={values.allowExtraEmails}
-                      onChange={handleChange('allowExtraEmails')}
-                    />
-                  }
-                  label="Receive promotional emails"
                 />
                 <Button fullWidth type="submit" variant="contained">
                   Submit
