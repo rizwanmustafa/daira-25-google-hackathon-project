@@ -21,6 +21,8 @@ import ColorModeSelect from '../shared-theme/ColorModeSelect';
 import { GoogleIcon, SitemarkIcon } from './components/CustomIcons';
 import { Alert } from '@mui/material';
 import ApiRoutes from '../../api-constants';
+import { auth, googleProvider } from '../../firebase';
+import { signInWithPopup } from 'firebase/auth';
 
 const Card = styled(MuiCard)(({ theme }) => ({
   display: 'flex',
@@ -86,32 +88,48 @@ export default function SignIn(props: { disableCustomTheme?: boolean }) {
     setLoading(true);
     setApiError('');
     try {
-      // Here you would implement Google OAuth
-      // For example using a library like firebase.auth or auth0
-      // This is a placeholder
-      const response = await fetch(ApiRoutes.loginUser, {
-        method: 'GET',
+      // Sign in with Google using Firebase
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      const idToken = await user.getIdToken();
+
+      // Send the token to your backend for verification and to create user session
+      const backendResponse = await fetch(`${ApiRoutes.loginUser}`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ 
+          idToken: idToken,
+          email: user.email,
+          name: user.displayName,
+          photoURL: user.photoURL
+        }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to sign in with Google');
+      if (!backendResponse.ok) {
+        const errorData = await backendResponse.json();
+        throw new Error(errorData.message || 'Failed to authenticate with Google');
       }
 
-      const data = await response.json();
+      const data = await backendResponse.json();
       console.log('Google sign in successful', data);
 
-      // Store auth token
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      // Store auth data
+      localStorage.setItem('token', data.token || idToken);
+      localStorage.setItem('user', JSON.stringify({
+        id: user.uid,
+        email: user.email,
+        name: user.displayName,
+        photoURL: user.photoURL,
+        ...data.user
+      }));
 
       // Navigate to dashboard or home
       navigate('/dashboard');
     } catch (error) {
       console.error('Google sign in error:', error);
-      setApiError('Failed to sign in with Google. Please try again.');
+      setApiError(error instanceof Error ? error.message : 'Failed to sign in with Google. Please try again.');
     } finally {
       setLoading(false);
     }

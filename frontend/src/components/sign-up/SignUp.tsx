@@ -190,7 +190,9 @@ const MultiStepSignUp: React.FC<MultiStepSignUpProps> = (props) => {
         street: values.street,
         city: values.city,
         zipCode: values.zipcode,
-      }
+      },
+      provider: values.provider,
+      idToken: values.idToken,
     }
 
     console.log(values);
