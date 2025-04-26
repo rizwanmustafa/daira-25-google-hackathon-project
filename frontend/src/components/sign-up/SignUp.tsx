@@ -8,6 +8,8 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import FormLabel from '@mui/material/FormLabel';
 import FormControl from '@mui/material/FormControl';
 import Link from '@mui/material/Link';
+import Radio from '@mui/material/Radio';
+import RadioGroup from '@mui/material/RadioGroup';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
@@ -17,7 +19,10 @@ import AppTheme from '../shared-theme/AppTheme';
 import ColorModeSelect from '../shared-theme/ColorModeSelect';
 import { GoogleIcon, FacebookIcon, SitemarkIcon } from './components/CustomIcons';
 
+type UserType = 'customer' | 'provider';
+
 type SignUpValues = {
+  userType: UserType;
   name: string;
   email: string;
   password: string;
@@ -80,6 +85,7 @@ const SignUpContainer = styled(Stack)(({ theme }) => ({
 const MultiStepSignUp: React.FC<MultiStepSignUpProps> = (props) => {
   const [step, setStep] = React.useState<number>(1);
   const [values, setValues] = React.useState<SignUpValues>({
+    userType: 'customer', // Default to customer
     name: '',
     email: '',
     password: '',
@@ -94,12 +100,19 @@ const MultiStepSignUp: React.FC<MultiStepSignUpProps> = (props) => {
   const handleChange = <K extends keyof SignUpValues>(field: K) => (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
-    let value: string | boolean = 
-      field === 'allowExtraEmails' ? e.target.checked : e.target.value;
+    let value: any;
     
-    // For zipcode field, only allow numeric input
-    if (field === 'zipcode') {
-      value = (value as string).replace(/\D/g, ''); // Remove non-numeric characters
+    if (field === 'allowExtraEmails') {
+      value = e.target.checked;
+    } else if (field === 'userType') {
+      value = e.target.value as UserType;
+    } else {
+      value = e.target.value;
+      
+      // For zipcode field, only allow numeric input
+      if (field === 'zipcode') {
+        value = value.replace(/\D/g, ''); // Remove non-numeric characters
+      }
     }
     
     setValues((prev) => ({ ...prev, [field]: value }));
@@ -109,6 +122,7 @@ const MultiStepSignUp: React.FC<MultiStepSignUpProps> = (props) => {
     const newErrors: SignUpErrors = {};
 
     if (step === 1) {
+      if (!values.userType) newErrors.userType = 'Please select an account type.';
       if (!values.name) newErrors.name = 'Name is required.';
       if (!values.email || !/\S+@\S+\.\S+/.test(values.email))
         newErrors.email = 'Please enter a valid email address.';
@@ -162,6 +176,21 @@ const MultiStepSignUp: React.FC<MultiStepSignUpProps> = (props) => {
           <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {step === 1 && (
               <>
+                <FormControl>
+                  <FormLabel id="user-type-label" sx={{ textAlign: 'center' }}>I am a:</FormLabel>
+                  <RadioGroup
+                    row
+                    aria-labelledby="user-type-label"
+                    name="userType"
+                    value={values.userType}
+                    onChange={handleChange('userType')}
+                    sx={{ justifyContent: 'center' }}
+                  >
+                    <FormControlLabel value="customer" control={<Radio />} label="Customer" />
+                    <FormControlLabel value="provider" control={<Radio />} label="Provider" />
+                  </RadioGroup>
+                </FormControl>
+                
                 <FormControl>
                   <FormLabel htmlFor="name">Full name</FormLabel>
                   <TextField
@@ -324,6 +353,7 @@ const MultiStepSignUp: React.FC<MultiStepSignUpProps> = (props) => {
               <>
                 <Typography variant="h6">Review your information</Typography>
                 <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+                  <Typography><strong>Account Type:</strong> {values.userType === 'customer' ? 'Customer' : 'Provider'}</Typography>
                   <Typography><strong>Name:</strong> {values.name}</Typography>
                   <Typography><strong>Email:</strong> {values.email}</Typography>
                   <Typography><strong>Phone:</strong> {values.phone}</Typography>
