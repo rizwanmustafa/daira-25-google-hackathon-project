@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import datetime
 from firebase_admin import auth
 from firebase_config import db
@@ -47,6 +47,13 @@ class User(BaseModel):
     phoneNumber: str
     address: Address
 
+class GeneralItem(BaseModel):
+    name: str
+    category: str
+    brands: List[str]
+    defaultImageUrl: Optional[str] = None
+    description: Optional[str] = None
+
 class Item(BaseModel):
     name: str
     category: str
@@ -55,6 +62,8 @@ class Item(BaseModel):
     description: Optional[str] = None
     providerId: str
     availableStock: int
+    generalItemId: Optional[str] = None
+    imageUrl: Optional[str] = None
 
 class OrderItem(BaseModel):
     itemId: str
@@ -69,12 +78,16 @@ class Order(BaseModel):
     totalPrice: float
     status: str = "pending"
     deliveryAddress: Address
+    scheduledDeliveryTime: Optional[datetime] = None
 
 class ShoppingList(BaseModel):
     userId: str
     name: str
     items: List[str]
     frequency: str
+    nextOrderDate: Optional[datetime] = None
+    orders: Optional[List[Any]] = None
+    autoApproveDelivery: Optional[bool] = False
 
 # Authentication middleware
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
@@ -92,6 +105,19 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 @app.post("/api/auth/register")
 async def register_user(user: UserCreate):
     try:
+        # First check if user exists
+        try:
+            existing_user = auth.get_user_by_email(user.email)
+            if existing_user:
+                # Optionally, you could delete the existing user here
+                # auth.delete_user(existing_user.uid)
+                raise HTTPException(
+                    status_code=400,
+                    detail="Email already registered. Please use a different email or try logging in."
+                )
+        except auth.UserNotFoundError:
+            pass  # User doesn't exist, proceed with registration
+        
         # Create user in Firebase Auth
         user_record = auth.create_user(
             email=user.email,
@@ -110,6 +136,11 @@ async def register_user(user: UserCreate):
             "message": "User registered successfully",
             "userId": user_record.uid
         }
+    except auth.EmailAlreadyExistsError:
+        raise HTTPException(
+            status_code=400,
+            detail="Email already registered. Please use a different email or try logging in."
+        )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -187,6 +218,16 @@ async def get_item(item_id: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.put("/api/items/{item_id}")
+async def update_item(item_id: str, item: Item, current_user: dict = Depends(get_current_user)):
+    try:
+        item_data = item.dict()
+        item_data['updatedAt'] = datetime.now()
+        db.collection('items').document(item_id).update(item_data)
+        return {"message": "Item updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 # Order Routes
 @app.post("/api/orders")
 async def create_order(order: Order, current_user: dict = Depends(get_current_user)):
@@ -224,6 +265,16 @@ async def get_order(order_id: str):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.put("/api/orders/{order_id}")
+async def update_order(order_id: str, order: Order, current_user: dict = Depends(get_current_user)):
+    try:
+        order_data = order.dict()
+        order_data['updatedAt'] = datetime.now()
+        db.collection('orders').document(order_id).update(order_data)
+        return {"message": "Order updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 # List Routes
 @app.post("/api/lists")
 async def create_list(list_data: ShoppingList, current_user: dict = Depends(get_current_user)):
@@ -258,6 +309,39 @@ async def get_list(list_id: str):
         if not list_doc.exists:
             raise HTTPException(status_code=404, detail="List not found")
         return {"id": list_id, **list_doc.to_dict()}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.put("/api/lists/{list_id}")
+async def update_list(list_id: str, list_data: ShoppingList, current_user: dict = Depends(get_current_user)):
+    try:
+        list_data_dict = list_data.dict()
+        list_data_dict['updatedAt'] = datetime.now()
+        db.collection('lists').document(list_id).update(list_data_dict)
+        return {"message": "List updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# General Items Routes
+@app.post("/api/general-items")
+async def create_general_item(item: GeneralItem, current_user: dict = Depends(get_current_user)):
+    try:
+        if current_user.get('userType') != 'provider':
+            raise HTTPException(status_code=403, detail="Only providers can create general items")
+        item_data = item.dict()
+        item_data['createdAt'] = datetime.now()
+        item_data['updatedAt'] = datetime.now()
+        item_ref = db.collection('general_items').document()
+        item_ref.set(item_data)
+        return {"message": "General item created successfully", "generalItemId": item_ref.id}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/api/general-items")
+async def get_general_items():
+    try:
+        items = db.collection('general_items').stream()
+        return {"general_items": [{"id": item.id, **item.to_dict()} for item in items]}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
