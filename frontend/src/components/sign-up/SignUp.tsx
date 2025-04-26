@@ -17,12 +17,29 @@ import AppTheme from '../shared-theme/AppTheme';
 import ColorModeSelect from '../shared-theme/ColorModeSelect';
 import { GoogleIcon, FacebookIcon, SitemarkIcon } from './components/CustomIcons';
 
+type SignUpValues = {
+  name: string;
+  email: string;
+  password: string;
+  phone: string;
+  street: string;
+  city: string;
+  zipcode: string;
+  allowExtraEmails: boolean;
+};
+
+type SignUpErrors = Partial<Record<keyof SignUpValues, string>>;
+
+type MultiStepSignUpProps = { disableCustomTheme?: boolean };
+
 const Card = styled(MuiCard)(({ theme }) => ({
   display: 'flex',
   flexDirection: 'column',
   alignSelf: 'center',
   width: '100%',
-  padding: theme.spacing(4),
+  maxHeight: '90vh',
+  overflowY: 'auto',
+  padding: theme.spacing(3),
   gap: theme.spacing(2),
   margin: 'auto',
   boxShadow:
@@ -37,11 +54,12 @@ const Card = styled(MuiCard)(({ theme }) => ({
 }));
 
 const SignUpContainer = styled(Stack)(({ theme }) => ({
-  height: 'calc((1 - var(--template-frame-height, 0)) * 100dvh)',
-  minHeight: '100%',
+  height: '100vh',
+  maxHeight: '100vh',
+  overflowY: 'auto',
   padding: theme.spacing(2),
   [theme.breakpoints.up('sm')]: {
-    padding: theme.spacing(4),
+    padding: theme.spacing(3),
   },
   '&::before': {
     content: '""',
@@ -59,205 +77,274 @@ const SignUpContainer = styled(Stack)(({ theme }) => ({
   },
 }));
 
-export default function SignUp(props: { disableCustomTheme?: boolean }) {
-  const [phoneError, setPhoneError] = React.useState(false);
-  const [phoneErrorMessage, setPhoneErrorMessage] = React.useState('');
+const MultiStepSignUp: React.FC<MultiStepSignUpProps> = (props) => {
+  const [step, setStep] = React.useState<number>(1);
+  const [values, setValues] = React.useState<SignUpValues>({
+    name: '',
+    email: '',
+    password: '',
+    phone: '',
+    street: '',
+    city: '',
+    zipcode: '',
+    allowExtraEmails: false,
+  });
+  const [errors, setErrors] = React.useState<SignUpErrors>({});
 
-  const [emailError, setEmailError] = React.useState(false);
-  const [emailErrorMessage, setEmailErrorMessage] = React.useState('');
-  const [passwordError, setPasswordError] = React.useState(false);
-  const [passwordErrorMessage, setPasswordErrorMessage] = React.useState('');
-  const [nameError, setNameError] = React.useState(false);
-  const [nameErrorMessage, setNameErrorMessage] = React.useState('');
-
-  const validateInputs = () => {
-    const phone = document.getElementById('mobile-number') as HTMLInputElement;
-    const email = document.getElementById('email') as HTMLInputElement;
-    const password = document.getElementById('password') as HTMLInputElement;
-    const name = document.getElementById('name') as HTMLInputElement;
-
-    let isValid = true;
-
-    if (!phone.value || !/^03\d{9}$/.test(phone.value)) {
-      setPhoneError(true);
-      setPhoneErrorMessage('Phone number must start with 03 and be exactly 11 digits.');
-      isValid = false;
-    } else {
-      setPhoneError(false);
-      setPhoneErrorMessage('');
+  const handleChange = <K extends keyof SignUpValues>(field: K) => (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    let value: string | boolean = 
+      field === 'allowExtraEmails' ? e.target.checked : e.target.value;
+    
+    // For zipcode field, only allow numeric input
+    if (field === 'zipcode') {
+      value = (value as string).replace(/\D/g, ''); // Remove non-numeric characters
     }
     
-
-    if (!email.value || !/\S+@\S+\.\S+/.test(email.value)) {
-      setEmailError(true);
-      setEmailErrorMessage('Please enter a valid email address.');
-      isValid = false;
-    } else {
-      setEmailError(false);
-      setEmailErrorMessage('');
-    }
-
-    if (!password.value || password.value.length < 6) {
-      setPasswordError(true);
-      setPasswordErrorMessage('Password must be at least 6 characters long.');
-      isValid = false;
-    } else {
-      setPasswordError(false);
-      setPasswordErrorMessage('');
-    }
-
-    if (!name.value || name.value.length < 1) {
-      setNameError(true);
-      setNameErrorMessage('Name is required.');
-      isValid = false;
-    } else {
-      setNameError(false);
-      setNameErrorMessage('');
-    }
-
-    return isValid;
+    setValues((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    if (nameError || emailError || passwordError || phoneError) {
-      event.preventDefault();
-      return;
+  const validateStep = (): boolean => {
+    const newErrors: SignUpErrors = {};
+
+    if (step === 1) {
+      if (!values.name) newErrors.name = 'Name is required.';
+      if (!values.email || !/\S+@\S+\.\S+/.test(values.email))
+        newErrors.email = 'Please enter a valid email address.';
+      if (!values.password || values.password.length < 6)
+        newErrors.password = 'Password must be at least 6 characters.';
     }
-    const data = new FormData(event.currentTarget);
-    console.log({
-      name: data.get('name'),
-      lastName: data.get('lastName'),
-      email: data.get('email'),
-      password: data.get('password'),
-    });
+
+    if (step === 2) {
+      if (!values.phone || !/^03\d{9}$/.test(values.phone))
+        newErrors.phone = 'Phone must start with 03 and be 11 digits.';
+    }
+
+    if (step === 3) {
+      if (!values.street) newErrors.street = 'Street is required.';
+      if (!values.city) newErrors.city = 'City is required.';
+      if (!values.zipcode) {
+        newErrors.zipcode = 'Zip code is required.';
+      } else if (!/^\d+$/.test(values.zipcode)) {
+        newErrors.zipcode = 'Zip code must contain only numbers.';
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleNext = () => {
+    if (validateStep()) setStep((prev) => prev + 1);
+  };
+
+  const handleBack = () => setStep((prev) => prev - 1);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (validateStep()) {
+      console.log('Submitting data:', values);
+      // Submit logic here
+    }
   };
 
   return (
     <AppTheme {...props}>
       <CssBaseline enableColorScheme />
       <ColorModeSelect sx={{ position: 'fixed', top: '1rem', right: '1rem' }} />
-      <SignUpContainer direction="column" justifyContent="space-between">
+      <SignUpContainer direction="column" justifyContent="center">
         <Card variant="outlined">
           <SitemarkIcon />
-          <Typography
-            component="h1"
-            variant="h4"
-            sx={{ width: '100%', fontSize: 'clamp(2rem, 10vw, 2.15rem)' }}
-          >
+          <Typography component="h1" variant="h4">
             Sign up
           </Typography>
-          <Box
-            component="form"
-            onSubmit={handleSubmit}
-            sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
-          >
-            <FormControl>
-              <FormLabel htmlFor="name">Full name</FormLabel>
-              <TextField
-                autoComplete="name"
-                name="name"
-                required
-                fullWidth
-                id="name"
-                placeholder="Jon Snow"
-                error={nameError}
-                helperText={nameErrorMessage}
-                color={nameError ? 'error' : 'primary'}
-              />
-            </FormControl>
+          <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {step === 1 && (
+              <>
+                <FormControl>
+                  <FormLabel htmlFor="name">Full name</FormLabel>
+                  <TextField
+                    id="name"
+                    name="name"
+                    required
+                    fullWidth
+                    value={values.name}
+                    onChange={handleChange('name')}
+                    error={Boolean(errors.name)}
+                    helperText={errors.name}
+                  />
+                </FormControl>
+                <FormControl>
+                  <FormLabel htmlFor="email">Email</FormLabel>
+                  <TextField
+                    id="email"
+                    name="email"
+                    required
+                    fullWidth
+                    value={values.email}
+                    onChange={handleChange('email')}
+                    error={Boolean(errors.email)}
+                    helperText={errors.email}
+                  />
+                </FormControl>
+                <FormControl>
+                  <FormLabel htmlFor="password">Password</FormLabel>
+                  <TextField
+                    id="password"
+                    name="password"
+                    type="password"
+                    required
+                    fullWidth
+                    value={values.password}
+                    onChange={handleChange('password')}
+                    error={Boolean(errors.password)}
+                    helperText={errors.password}
+                  />
+                </FormControl>
+                <Button fullWidth variant="contained" onClick={handleNext}>
+                  Next
+                </Button>
+                <Divider>
+                  <Typography>or</Typography>
+                </Divider>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<GoogleIcon />}
+                  onClick={() => alert('Sign up with Google')}
+                >
+                  Sign up with Google
+                </Button>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<FacebookIcon />}
+                  onClick={() => alert('Sign up with Facebook')}
+                >
+                  Sign up with Facebook
+                </Button>
+                <Typography align="center">
+                  Already have an account?{' '}
+                  <Link href="/signin/">Sign in</Link>
+                </Typography>
+              </>
+            )}
 
-            <FormControl>
-              <FormLabel htmlFor="mobile-number">Mobile Number</FormLabel>
-              <TextField
-                autoComplete="tel-local"
-                name="mobile-number"
-                required
-                fullWidth
-                id="mobile-number"
-                placeholder="03001234567"
-                error={phoneError}
-                helperText={phoneErrorMessage}
-                color={phoneError? 'error' : 'primary'}
-              />
-            </FormControl>
+            {step === 2 && (
+              <>
+                <FormControl>
+                  <FormLabel htmlFor="phone">Mobile Number</FormLabel>
+                  <TextField
+                    id="phone"
+                    name="phone"
+                    required
+                    fullWidth
+                    value={values.phone}
+                    onChange={handleChange('phone')}
+                    error={Boolean(errors.phone)}
+                    helperText={errors.phone}
+                  />
+                </FormControl>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Button onClick={handleBack}>Back</Button>
+                  <Button variant="contained" onClick={handleNext}>
+                    Next
+                  </Button>
+                </Box>
+              </>
+            )}
 
-            <FormControl>
-              <FormLabel htmlFor="email">Email</FormLabel>
-              <TextField
-                required
-                fullWidth
-                id="email"
-                placeholder="your@email.com"
-                name="email"
-                autoComplete="email"
-                variant="outlined"
-                error={emailError}
-                helperText={emailErrorMessage}
-                color={emailError? 'error' : 'primary'}
-              />
-            </FormControl>
-            <FormControl>
-              <FormLabel htmlFor="password">Password</FormLabel>
-              <TextField
-                required
-                fullWidth
-                name="password"
-                placeholder="••••••"
-                type="password"
-                id="password"
-                autoComplete="new-password"
-                variant="outlined"
-                error={passwordError}
-                helperText={passwordErrorMessage}
-                color={passwordError ? 'error' : 'primary'}
-              />
-            </FormControl>
-            <FormControlLabel
-              control={<Checkbox value="allowExtraEmails" color="primary" />}
-              label="I want to receive updates via email."
-            />
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              onClick={validateInputs}
-            >
-              Sign up
-            </Button>
-          </Box>
-          <Divider>
-            <Typography sx={{ color: 'text.secondary' }}>or</Typography>
-          </Divider>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Button
-              fullWidth
-              variant="outlined"
-              onClick={() => alert('Sign up with Google')}
-              startIcon={<GoogleIcon />}
-            >
-              Sign up with Google
-            </Button>
-            <Button
-              fullWidth
-              variant="outlined"
-              onClick={() => alert('Sign up with Facebook')}
-              startIcon={<FacebookIcon />}
-            >
-              Sign up with Facebook
-            </Button>
-            <Typography sx={{ textAlign: 'center' }}>
-              Already have an account?{' '}
-              <Link
-                href="/signin/"
-                variant="body2"
-                sx={{ alignSelf: 'center' }}
-              >
-                Sign in
-              </Link>
-            </Typography>
+            {step === 3 && (
+              <>
+                <Typography variant="h6">Address</Typography>
+                <FormControl>
+                  <FormLabel htmlFor="street">Street</FormLabel>
+                  <TextField
+                    id="street"
+                    name="street"
+                    required
+                    fullWidth
+                    value={values.street}
+                    onChange={handleChange('street')}
+                    error={Boolean(errors.street)}
+                    helperText={errors.street}
+                  />
+                </FormControl>
+                <FormControl>
+                  <FormLabel htmlFor="city">City</FormLabel>
+                  <TextField
+                    id="city"
+                    name="city"
+                    required
+                    fullWidth
+                    value={values.city}
+                    onChange={handleChange('city')}
+                    error={Boolean(errors.city)}
+                    helperText={errors.city}
+                  />
+                </FormControl>
+                <FormControl>
+                  <FormLabel htmlFor="zipcode">Zip Code</FormLabel>
+                  <TextField
+                    id="zipcode"
+                    name="zipcode"
+                    required
+                    fullWidth
+                    type="text"
+                    inputProps={{ 
+                      inputMode: 'numeric',
+                      pattern: '[0-9]*' 
+                    }}
+                    value={values.zipcode}
+                    onChange={handleChange('zipcode')}
+                    error={Boolean(errors.zipcode)}
+                    helperText={errors.zipcode}
+                  />
+                </FormControl>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={values.allowExtraEmails}
+                      onChange={handleChange('allowExtraEmails')}
+                    />
+                  }
+                  label="I want to receive updates via email."
+                />
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Button onClick={handleBack}>Back</Button>
+                  <Button variant="contained" onClick={handleNext}>
+                    Next
+                  </Button>
+                </Box>
+              </>
+            )}
+
+            {step === 4 && (
+              <>
+                <Typography variant="h6">Review your information</Typography>
+                <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+                  <Typography><strong>Name:</strong> {values.name}</Typography>
+                  <Typography><strong>Email:</strong> {values.email}</Typography>
+                  <Typography><strong>Phone:</strong> {values.phone}</Typography>
+                  <Typography><strong>Street:</strong> {values.street}</Typography>
+                  <Typography><strong>City:</strong> {values.city}</Typography>
+                  <Typography><strong>Zip Code:</strong> {values.zipcode}</Typography>
+                  <Typography><strong>Receive updates:</strong> {values.allowExtraEmails ? 'Yes' : 'No'}</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <Button onClick={handleBack}>Back</Button>
+                  <Button type="submit" variant="contained">
+                    Submit
+                  </Button>
+                </Box>
+              </>
+            )}
           </Box>
         </Card>
       </SignUpContainer>
     </AppTheme>
   );
-}
+};
+
+export default MultiStepSignUp;
