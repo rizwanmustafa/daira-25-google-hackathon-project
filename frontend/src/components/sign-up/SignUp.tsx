@@ -60,6 +60,9 @@ const SignUpContainer = styled(Stack)(({ theme }) => ({
 }));
 
 export default function SignUp(props: { disableCustomTheme?: boolean }) {
+  const [phoneError, setPhoneError] = React.useState(false);
+  const [phoneErrorMessage, setPhoneErrorMessage] = React.useState('');
+
   const [emailError, setEmailError] = React.useState(false);
   const [emailErrorMessage, setEmailErrorMessage] = React.useState('');
   const [passwordError, setPasswordError] = React.useState(false);
@@ -68,11 +71,22 @@ export default function SignUp(props: { disableCustomTheme?: boolean }) {
   const [nameErrorMessage, setNameErrorMessage] = React.useState('');
 
   const validateInputs = () => {
+    const phone = document.getElementById('mobile-number') as HTMLInputElement;
     const email = document.getElementById('email') as HTMLInputElement;
     const password = document.getElementById('password') as HTMLInputElement;
     const name = document.getElementById('name') as HTMLInputElement;
 
     let isValid = true;
+
+    if (!phone.value || !/^03\d{9}$/.test(phone.value)) {
+      setPhoneError(true);
+      setPhoneErrorMessage('Phone number must start with 03 and be exactly 11 digits.');
+      isValid = false;
+    } else {
+      setPhoneError(false);
+      setPhoneErrorMessage('');
+    }
+    
 
     if (!email.value || !/\S+@\S+\.\S+/.test(email.value)) {
       setEmailError(true);
@@ -105,7 +119,7 @@ export default function SignUp(props: { disableCustomTheme?: boolean }) {
   };
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    if (nameError || emailError || passwordError) {
+    if (nameError || emailError || passwordError || phoneError) {
       event.preventDefault();
       return;
     }
@@ -151,6 +165,22 @@ export default function SignUp(props: { disableCustomTheme?: boolean }) {
                 color={nameError ? 'error' : 'primary'}
               />
             </FormControl>
+
+            <FormControl>
+              <FormLabel htmlFor="mobile-number">Mobile Number</FormLabel>
+              <TextField
+                autoComplete="tel-local"
+                name="mobile-number"
+                required
+                fullWidth
+                id="mobile-number"
+                placeholder="03001234567"
+                error={phoneError}
+                helperText={phoneErrorMessage}
+                color={phoneError? 'error' : 'primary'}
+              />
+            </FormControl>
+
             <FormControl>
               <FormLabel htmlFor="email">Email</FormLabel>
               <TextField
@@ -163,7 +193,7 @@ export default function SignUp(props: { disableCustomTheme?: boolean }) {
                 variant="outlined"
                 error={emailError}
                 helperText={emailErrorMessage}
-                color={passwordError ? 'error' : 'primary'}
+                color={emailError? 'error' : 'primary'}
               />
             </FormControl>
             <FormControl>
@@ -218,7 +248,7 @@ export default function SignUp(props: { disableCustomTheme?: boolean }) {
             <Typography sx={{ textAlign: 'center' }}>
               Already have an account?{' '}
               <Link
-                href="/material-ui/getting-started/templates/sign-in/"
+                href="/signin/"
                 variant="body2"
                 sx={{ alignSelf: 'center' }}
               >
