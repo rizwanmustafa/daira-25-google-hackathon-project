@@ -133,6 +133,16 @@ class LoginRequest(BaseModel):
     password: Union[str, None]
 
 
+def get_user_id_by_email(email: str) -> str:
+    users_ref = db.collection("users")
+    # Query for documents where “email”==email, limit 1
+    results = users_ref.where("email", "==", email).limit(1).stream()
+    for doc in results:
+        # doc.id is the document’s ID
+        return doc.id
+    # If we get here, no matching document was found
+    raise HTTPException(status_code=404, detail="User not found")
+
 
 # Authentication middleware
 async def get_current_user(decoded_token: dict = Depends(firebase_auth)):
@@ -247,7 +257,7 @@ async def login_user():
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/api/auth/me")
-async def get_current_user1(current_user: dict = Depends(firebase_auth)):
+async def get_current_user1(current_user: dict = Depends(firebase_auth)) -> User:
     # build & execute the query, limit to 1 result
     snaps = (
         db.collection("users")
@@ -264,15 +274,18 @@ async def get_current_user1(current_user: dict = Depends(firebase_auth)):
 
     # take the first match
     user_snap = snaps[0]
-    return {"user": user_snap.to_dict()}
+    return user_snap.to_dict()
 
 # Item Routes
 @app.get("/api/items")
-async def get_items(category: Optional[str] = None, current_user: dict = Depends(get_current_user)):
+async def get_items(category: Optional[str] = None, general_item_id : Optional[str] = None,  current_user: dict = Depends(get_current_user1)):
     try:
         items_ref = db.collection('items')
         if category:
             items_ref = items_ref.where('category', '==', category)
+
+        if general_item_id:
+            items_ref = items_ref.where('generalItemId', '==', general_item_id)
         
         items = items_ref.stream()
         return {"items": [{"id": item.id, **item.to_dict()} for item in items]}
@@ -280,14 +293,17 @@ async def get_items(category: Optional[str] = None, current_user: dict = Depends
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/items")
-async def create_item(item: Item, current_user: dict = Depends(get_current_user)):
+async def create_item(item: Item, current_user: dict = Depends(get_current_user1)):
     try:
         if current_user.get('userType') != 'provider':
             raise HTTPException(status_code=403, detail="Only providers can create items")
         
-        item_data = item.dict()
+        item_data = item.model_dump()
         item_data['createdAt'] = datetime.now()
         item_data['updatedAt'] = datetime.now()
+
+        
+        item_data["providerId"] = get_user_id_by_email(current_user['email'])
         
         item_ref = db.collection('items').document()
         item_ref.set(item_data)
@@ -307,7 +323,7 @@ async def get_item(item_id: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.put("/api/items/{item_id}")
-async def update_item(item_id: str, item: Item, current_user: dict = Depends(get_current_user)):
+async def update_item(item_id: str, item: Item, current_user: dict = Depends(get_current_user1)):
     try:
         item_data = item.dict()
         item_data['updatedAt'] = datetime.now()
@@ -318,7 +334,7 @@ async def update_item(item_id: str, item: Item, current_user: dict = Depends(get
 
 # Order Routes
 @app.post("/api/orders")
-async def create_order(order: Order, current_user: dict = Depends(get_current_user)):
+async def create_order(order: Order, current_user: dict = Depends(get_current_user1)):
     try:
         order_data = order.dict()
         order_data['userId'] = current_user['uid']
@@ -333,7 +349,7 @@ async def create_order(order: Order, current_user: dict = Depends(get_current_us
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/api/orders")
-async def get_orders(current_user: dict = Depends(get_current_user)):
+async def get_orders(current_user: dict = Depends(get_current_user1)):
     try:
         orders = db.collection('orders')\
             .where('userId', '==', current_user['uid'])\
@@ -354,7 +370,7 @@ async def get_order(order_id: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.put("/api/orders/{order_id}")
-async def update_order(order_id: str, order: Order, current_user: dict = Depends(get_current_user)):
+async def update_order(order_id: str, order: Order, current_user: dict = Depends(get_current_user1)):
     try:
         order_data = order.dict()
         order_data['updatedAt'] = datetime.now()
@@ -365,7 +381,7 @@ async def update_order(order_id: str, order: Order, current_user: dict = Depends
 
 # List Routes
 @app.post("/api/lists")
-async def create_list(list_data: ShoppingList, current_user: dict = Depends(get_current_user)):
+async def create_list(list_data: ShoppingList, current_user: dict = Depends(get_current_user1)):
     try:
         list_data_dict = list_data.dict()
         list_data_dict['userId'] = current_user['uid']
@@ -380,7 +396,7 @@ async def create_list(list_data: ShoppingList, current_user: dict = Depends(get_
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/api/lists")
-async def get_lists(current_user: dict = Depends(get_current_user)):
+async def get_lists(current_user: dict = Depends(get_current_user1)):
     try:
         lists = db.collection('lists')\
             .where('userId', '==', current_user['uid'])\
@@ -401,7 +417,7 @@ async def get_list(list_id: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.put("/api/lists/{list_id}")
-async def update_list(list_id: str, list_data: ShoppingList, current_user: dict = Depends(get_current_user)):
+async def update_list(list_id: str, list_data: ShoppingList, current_user: dict = Depends(get_current_user1)):
     try:
         list_data_dict = list_data.dict()
         list_data_dict['updatedAt'] = datetime.now()
@@ -412,7 +428,7 @@ async def update_list(list_id: str, list_data: ShoppingList, current_user: dict 
 
 # General Items Routes
 @app.post("/api/general-items")
-async def create_general_item(item: GeneralItem, current_user: dict = Depends(get_current_user)):
+async def create_general_item(item: GeneralItem, current_user: dict = Depends(get_current_user1)):
     try:
         if current_user.get('userType') != 'provider':
             raise HTTPException(status_code=403, detail="Only providers can create general items")
