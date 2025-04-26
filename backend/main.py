@@ -248,15 +248,23 @@ async def login_user():
 
 @app.get("/api/auth/me")
 async def get_current_user1(current_user: dict = Depends(firebase_auth)):
-    try:
-        # Get user data from Firestore
-        user_doc = db.collection('users').document(current_user['uid']).get()
-        if not user_doc.exists:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        return {"user": user_doc.to_dict()}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    # build & execute the query, limit to 1 result
+    snaps = (
+        db.collection("users")
+          .where("email", "==", current_user["email"])
+          .limit(1)
+          .get()
+    )  # snaps is a list of DocumentSnapshots
+
+    print(snaps);
+    print(len(snaps));
+
+    if len(snaps) == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # take the first match
+    user_snap = snaps[0]
+    return {"user": user_snap.to_dict()}
 
 # Item Routes
 @app.get("/api/items")
