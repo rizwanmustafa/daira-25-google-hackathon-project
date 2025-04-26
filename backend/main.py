@@ -6,6 +6,7 @@ from typing import List, Optional, Any
 from datetime import datetime
 from firebase_admin import auth
 from firebase_config import db
+import requests
 
 # Create FastAPI app
 app = FastAPI(
