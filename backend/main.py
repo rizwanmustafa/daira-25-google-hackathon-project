@@ -1,9 +1,15 @@
-from fastapi import FastAPI, HTTPException, Depends, Header
+import logging
+
+from datetime import datetime
+from typing import Any, List, Optional, Union
+
+from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from starlette.concurrency import run_in_threadpool
+
 from pydantic import BaseModel, EmailStr
-from typing import List, Optional, Any
-from datetime import datetime
+
 from firebase_admin import auth
 from firebase_config import db
 import requests
@@ -16,8 +22,38 @@ app = FastAPI(
 )
 
 # Security
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
+logger = logging.getLogger("uvicorn.error")
+
+
+# First, fix the firebase_auth function
+async def firebase_auth(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Bearer authentication required",
+        )
+        
+    token = credentials.credentials
+    try:
+        # offload the blocking verify call to a threadpool
+        decoded_token = await run_in_threadpool(auth.verify_id_token, token)
+        return decoded_token
+    # except firebase_exceptions.InvalidIdTokenError:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_401_UNAUTHORIZED,
+    #         detail="Invalid token",
+    #     )
+    except Exception as e:
+        # catch any other errors (network, issuer mismatch, etc)
+        logger.error("Error verifying Firebase token", exc_info=e)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Could not verify Firebase token: {str(e)}",
+        )
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -40,6 +76,8 @@ class UserCreate(BaseModel):
     userType: str
     phoneNumber: str
     address: Address
+    provider: str
+    idToken: str
 
 class User(BaseModel):
     email: str
@@ -90,11 +128,16 @@ class ShoppingList(BaseModel):
     orders: Optional[List[Any]] = None
     autoApproveDelivery: Optional[bool] = False
 
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: Union[str, None]
+
+
+
 # Authentication middleware
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def get_current_user(decoded_token: dict = Depends(firebase_auth)):
     try:
-        token = credentials.credentials
-        decoded_token = auth.verify_id_token(token)
+        # We already have the decoded token from firebase_auth dependency
         return decoded_token
     except Exception as e:
         raise HTTPException(
@@ -109,44 +152,80 @@ async def register_user(user: UserCreate):
         # First check if user exists
         try:
             existing_user = auth.get_user_by_email(user.email)
-            if existing_user:
-                # Optionally, you could delete the existing user here
-                # auth.delete_user(existing_user.uid)
-                raise HTTPException(
-                    status_code=400,
-                    detail="Email already registered. Please use a different email or try logging in."
-                )
+            # If user exists in Auth, try to delete them first
+            auth.delete_user(existing_user.uid)
+            # Also delete from Firestore if exists
+            db.collection('users').document(existing_user.uid).delete()
+            # Small delay to ensure deletion completes
+            import time
+            time.sleep(1)
         except auth.UserNotFoundError:
             pass  # User doesn't exist, proceed with registration
+        except Exception as e:
+            # Log any other errors but continue with registration attempt
+            print(f"Error checking/deleting existing user: {e}")
         
-        # Create user in Firebase Auth
-        user_record = auth.create_user(
-            email=user.email,
-            password=user.password,
-            display_name=user.name
-        )
-        
-        # Create user document in Firestore
-        user_data = user.dict(exclude={'password'})
-        user_data['createdAt'] = datetime.now()
-        user_data['updatedAt'] = datetime.now()
-        
-        db.collection('users').document(user_record.uid).set(user_data)
-        
-        return {
-            "message": "User registered successfully",
-            "userId": user_record.uid
-        }
-    except auth.EmailAlreadyExistsError:
+        # Check if this is a federated sign-in (like Google)
+        if user.provider == "google" and user.idToken:
+            # For federated sign-in, we don't need to create a user with password
+            # Instead, we verify the ID token and get the user info from it
+            try:
+                decoded_token = auth.verify_id_token(user.idToken)
+                uid = decoded_token['uid']
+                
+                # Create user document in Firestore using the uid from the token
+                user_data = user.dict(exclude={'password', 'idToken'})
+                user_data['createdAt'] = datetime.now()
+                user_data['updatedAt'] = datetime.now()
+                
+                db.collection('users').document(uid).set(user_data)
+                
+                return {
+                    "message": "User registered successfully with Google",
+                    "userId": uid
+                }
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Failed to verify Google ID token: {str(e)}"
+                )
+        else:
+            # Traditional email/password registration
+            if not user.password or len(user.password) < 6:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Password must be at least 6 characters long for email registration"
+                )
+                
+            # Create user in Firebase Auth
+            user_record = auth.create_user(
+                email=user.email,
+                password=user.password,
+                display_name=user.name
+            )
+            
+            # Create user document in Firestore
+            user_data = user.dict(exclude={'password', 'idToken'})
+            user_data['createdAt'] = datetime.now()
+            user_data['updatedAt'] = datetime.now()
+            
+            db.collection('users').document(user_record.uid).set(user_data)
+            
+            return {
+                "message": "User registered successfully with email/password",
+                "userId": user_record.uid
+            }
+    except auth.EmailAlreadyExistsError as e:
+        # Provide more detailed error info for debugging
         raise HTTPException(
             status_code=400,
-            detail="Email already registered. Please use a different email or try logging in."
+            detail=f"Email already registered despite deletion attempt. Error: {str(e)}"
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/auth/login")
-async def login_user(email: str, password: str):
+async def login_user():
     try:
         # Get user by email
         user = auth.get_user_by_email(email)
@@ -168,7 +247,7 @@ async def login_user(email: str, password: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/api/auth/me")
-async def get_current_user(current_user: dict = Depends(get_current_user)):
+async def get_current_user1(current_user: dict = Depends(firebase_auth)):
     try:
         # Get user data from Firestore
         user_doc = db.collection('users').document(current_user['uid']).get()
