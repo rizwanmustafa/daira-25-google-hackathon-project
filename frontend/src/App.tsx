@@ -18,9 +18,9 @@ const router = createBrowserRouter([
   {
     path: "/consumer-home-page",
     element: <ConsumerHomePage />,
-  },{
+  }, {
     path: "/provider-home-page",
-    element: <ProviderHomePage/>,
+    element: <ProviderHomePage />,
   }
 
 ]);
@@ -29,7 +29,7 @@ function App() {
 
   return (
     <AuthProvider>
-    <RouterProvider router={router} />
+      <RouterProvider router={router} />
     </AuthProvider>
   )
 }

@@ -278,7 +278,7 @@ async def get_current_user1(current_user: dict = Depends(firebase_auth)) -> User
 
 # Item Routes
 @app.get("/api/items")
-async def get_items(category: Optional[str] = None, general_item_id : Optional[str] = None,  current_user: dict = Depends(get_current_user1)):
+async def get_items(category: Optional[str] = None, general_item_id : Optional[str] = None, provider_id: Optional[str] = None,   current_user: dict = Depends(get_current_user1)):
     try:
         items_ref = db.collection('items')
         if category:
@@ -286,6 +286,9 @@ async def get_items(category: Optional[str] = None, general_item_id : Optional[s
 
         if general_item_id:
             items_ref = items_ref.where('generalItemId', '==', general_item_id)
+
+        if provider_id:
+            items_ref = items_ref.where('providerId', '==', provider_id);
         
         items = items_ref.stream()
         return {"items": [{"id": item.id, **item.to_dict()} for item in items]}
@@ -351,8 +354,14 @@ async def create_order(order: Order, current_user: dict = Depends(get_current_us
 @app.get("/api/orders")
 async def get_orders(current_user: dict = Depends(get_current_user1)):
     try:
-        orders = db.collection('orders')\
-            .where('userId', '==', current_user['uid'])\
+
+        user_id = get_user_id_by_email(current_user['email'])
+
+        if current_user['userType'].lower() == 'producer':
+            orders = db.collection('orders').where('producerId', '==', user_id);
+        else:
+            orders = db.collection('orders')\
+            .where('userId', '==', user_id)\
             .stream()
         
         return {"orders": [{"id": order.id, **order.to_dict()} for order in orders]}

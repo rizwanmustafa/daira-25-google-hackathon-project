@@ -6,6 +6,8 @@ import { onAuthStateChanged, signOut, User } from "firebase/auth";
 interface AuthContextType {
   user: User | null;
   logout: () => Promise<void>;
+  idToken?: string;
+  setIdToken?: (token: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,6 +24,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
+
+      if(currentUser) {
+        currentUser.getIdToken().then((token) => {
+          // You can store the token in local storage or state if needed
+          console.log("User ID Token:", token);
+        });
+      }
     });
 
     return () => unsubscribe();

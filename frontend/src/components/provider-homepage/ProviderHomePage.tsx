@@ -36,6 +36,8 @@ import EditIcon from '@mui/icons-material/Edit';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import SearchIcon from '@mui/icons-material/Search';
 import InputAdornment from '@mui/material/InputAdornment';
+import ApiRoutes from '../../api-constants';
+import { useAuth } from '../../context/AuthProvider';
 
 // Types based on the FastAPI models
 interface Address {
@@ -174,17 +176,17 @@ const ProviderHomePage: React.FC<ProviderHomePageProps> = (props) => {
   const [editingItem, setEditingItem] = useState<Item | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isNewItem, setIsNewItem] = useState(false);
-  
+
   // Pagination
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
-  
+
   // Filtering
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('all');
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
   const [itemCategoryFilter, setItemCategoryFilter] = useState<string>('all');
   const [itemSearchQuery, setItemSearchQuery] = useState('');
-  
+
   // Empty item template
   const emptyItem: Omit<Item, 'id'> = {
     name: '',
@@ -197,209 +199,280 @@ const ProviderHomePage: React.FC<ProviderHomePageProps> = (props) => {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
-  
+
+  const auth = useAuth();
+
   // Mock data for display purposes
   useEffect(() => {
     // In a real app, this would be an API call
-    const mockItems: Item[] = [
-      { 
-        id: '1', 
-        name: 'Organic Apples', 
-        category: 'Fruits', 
-        brand: 'Green Farms', 
-        price: 2.99, 
-        providerId: 'provider1', 
-        availableStock: 50,
-        description: 'Fresh organic apples',
-        createdAt: '2025-04-20T10:30:00Z',
-        updatedAt: '2025-04-20T10:30:00Z'
-      },
-      { 
-        id: '2', 
-        name: 'Whole Wheat Bread', 
-        category: 'Bakery', 
-        brand: 'Healthy Bakers', 
-        price: 3.49, 
-        providerId: 'provider1', 
-        availableStock: 20,
-        description: 'Freshly baked whole wheat bread',
-        createdAt: '2025-04-19T09:15:00Z',
-        updatedAt: '2025-04-19T09:15:00Z'
-      },
-      { 
-        id: '3', 
-        name: 'Milk 1L', 
-        category: 'Dairy', 
-        brand: 'Farm Fresh', 
-        price: 1.99, 
-        providerId: 'provider1', 
-        availableStock: 30,
-        description: 'Fresh dairy milk',
-        createdAt: '2025-04-18T14:20:00Z',
-        updatedAt: '2025-04-18T14:20:00Z'
-      },
-      { 
-        id: '4', 
-        name: 'Chicken Breast', 
-        category: 'Meat', 
-        brand: 'Premium Poultry', 
-        price: 7.99, 
-        providerId: 'provider1', 
-        availableStock: 15,
-        description: 'Fresh boneless chicken breast',
-        createdAt: '2025-04-17T11:45:00Z',
-        updatedAt: '2025-04-17T11:45:00Z'
-      },
-      { 
-        id: '5', 
-        name: 'Spinach', 
-        category: 'Vegetables', 
-        brand: 'Green Farms', 
-        price: 2.49, 
-        providerId: 'provider1', 
-        availableStock: 25,
-        description: 'Fresh organic spinach',
-        createdAt: '2025-04-16T16:30:00Z',
-        updatedAt: '2025-04-16T16:30:00Z'
-      },
-    ];
-    
-    const mockOrders: Order[] = [
-      {
-        id: '1',
-        userId: 'user1',
-        providerId: 'provider1',
-        items: [
-          { itemId: '1', name: 'Organic Apples', quantity: 2, price: 2.99 },
-          { itemId: '3', name: 'Milk 1L', quantity: 1, price: 1.99 }
-        ],
-        totalPrice: 7.97,
-        status: 'pending',
-        deliveryAddress: {
-          street: '123 Main St',
-          city: 'Cityville',
-          zipCode: '12345'
-        },
-        createdAt: '2025-04-26T09:30:00Z',
-        updatedAt: '2025-04-26T09:30:00Z'
-      },
-      {
-        id: '2',
-        userId: 'user2',
-        providerId: 'provider1',
-        items: [
-          { itemId: '2', name: 'Whole Wheat Bread', quantity: 1, price: 3.49 },
-          { itemId: '4', name: 'Chicken Breast', quantity: 2, price: 7.99 }
-        ],
-        totalPrice: 19.47,
-        status: 'confirmed',
-        deliveryAddress: {
-          street: '456 Oak Ave',
-          city: 'Townsburg',
-          zipCode: '67890'
-        },
-        scheduledDeliveryTime: '2025-04-27T14:00:00Z',
-        createdAt: '2025-04-25T15:45:00Z',
-        updatedAt: '2025-04-25T16:20:00Z'
-      },
-      {
-        id: '3',
-        userId: 'user3',
-        providerId: 'provider1',
-        items: [
-          { itemId: '5', name: 'Spinach', quantity: 1, price: 2.49 },
-          { itemId: '1', name: 'Organic Apples', quantity: 3, price: 2.99 }
-        ],
-        totalPrice: 11.46,
-        status: 'delivered',
-        deliveryAddress: {
-          street: '789 Pine Ln',
-          city: 'Villageton',
-          zipCode: '54321'
-        },
-        scheduledDeliveryTime: '2025-04-26T11:00:00Z',
-        createdAt: '2025-04-24T10:15:00Z',
-        updatedAt: '2025-04-26T11:30:00Z'
-      },
-    ];
-    
-    const mockGeneralItems: GeneralItem[] = [
-      {
-        id: '1',
-        name: 'Apples',
-        category: 'Fruits',
-        brands: ['Green Farms', 'Nature\'s Best', 'Organic Valley'],
-        description: 'Fresh apples',
-      },
-      {
-        id: '2',
-        name: 'Bread',
-        category: 'Bakery',
-        brands: ['Healthy Bakers', 'Daily Bread', 'Fresh Loaf'],
-        description: 'Bread varieties',
-      },
-    ];
-    
-    setItems(mockItems);
-    setOrders(mockOrders);
-    setGeneralItems(mockGeneralItems);
+    // const mockItems: Item[] = [
+    //   { 
+    //     id: '1', 
+    //     name: 'Organic Apples', 
+    //     category: 'Fruits', 
+    //     brand: 'Green Farms', 
+    //     price: 2.99, 
+    //     providerId: 'provider1', 
+    //     availableStock: 50,
+    //     description: 'Fresh organic apples',
+    //     createdAt: '2025-04-20T10:30:00Z',
+    //     updatedAt: '2025-04-20T10:30:00Z'
+    //   },
+    //   { 
+    //     id: '2', 
+    //     name: 'Whole Wheat Bread', 
+    //     category: 'Bakery', 
+    //     brand: 'Healthy Bakers', 
+    //     price: 3.49, 
+    //     providerId: 'provider1', 
+    //     availableStock: 20,
+    //     description: 'Freshly baked whole wheat bread',
+    //     createdAt: '2025-04-19T09:15:00Z',
+    //     updatedAt: '2025-04-19T09:15:00Z'
+    //   },
+    //   { 
+    //     id: '3', 
+    //     name: 'Milk 1L', 
+    //     category: 'Dairy', 
+    //     brand: 'Farm Fresh', 
+    //     price: 1.99, 
+    //     providerId: 'provider1', 
+    //     availableStock: 30,
+    //     description: 'Fresh dairy milk',
+    //     createdAt: '2025-04-18T14:20:00Z',
+    //     updatedAt: '2025-04-18T14:20:00Z'
+    //   },
+    //   { 
+    //     id: '4', 
+    //     name: 'Chicken Breast', 
+    //     category: 'Meat', 
+    //     brand: 'Premium Poultry', 
+    //     price: 7.99, 
+    //     providerId: 'provider1', 
+    //     availableStock: 15,
+    //     description: 'Fresh boneless chicken breast',
+    //     createdAt: '2025-04-17T11:45:00Z',
+    //     updatedAt: '2025-04-17T11:45:00Z'
+    //   },
+    //   { 
+    //     id: '5', 
+    //     name: 'Spinach', 
+    //     category: 'Vegetables', 
+    //     brand: 'Green Farms', 
+    //     price: 2.49, 
+    //     providerId: 'provider1', 
+    //     availableStock: 25,
+    //     description: 'Fresh organic spinach',
+    //     createdAt: '2025-04-16T16:30:00Z',
+    //     updatedAt: '2025-04-16T16:30:00Z'
+    //   },
+    // ];
+
+
+    // fetch()
+
+    const searchParams = new URLSearchParams();
+    console.log(auth);
+    console.log(auth.user);
+    // auth.user?.uid
+
+    searchParams.append('providerId', auth.user?.uid || '');
+
+    const itemsReq = fetch(ApiRoutes.getItems + "?" +  searchParams.toString(), {
+      mode: 'cors',
+      method: 'GET',
+      headers: { Authorization: `Bearer ${auth.idToken}` },
+    });
+
+    itemsReq.then((res) => {
+      if (!res.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return res.json();
+    }
+    ).then((data) => {
+      console.log(data);
+      setItems(data??[]);
+    }).catch((error) => {
+      console.error('There was a problem with the fetch operation:', error);
+    });
+
+
+    const ordersReq = fetch(ApiRoutes.getOrders + "?" + searchParams.toString(), {
+      mode: 'cors',
+      method: 'GET',
+      headers: { Authorization: `Bearer ${auth.idToken}` },
+    });
+
+    ordersReq.then((res) => {
+      if (!res.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return res.json();
+    }
+    ).then((data) => {
+      console.log(data);
+      setOrders(data ?? []);
+    }).catch((error) => {
+      console.error('There was a problem with the fetch operation:', error);
+    });
+
+
+    const generalItemsReq = fetch(ApiRoutes.getGeneralItems, {
+      mode: 'cors',
+      method: 'GET',
+      headers: { Authorization: `Bearer ${auth.idToken}` },
+    });
+    generalItemsReq.then((res) => {
+      if (!res.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return res.json();
+    }
+    ).then((data) => {
+      console.log(data);
+      setGeneralItems(data ?? []);
+    }).catch((error) => {
+      console.error('There was a problem with the fetch operation:', error);
+    });
+
+    // const mockOrders: Order[] = [
+    //   {
+    //     id: '1',
+    //     userId: 'user1',
+    //     providerId: 'provider1',
+    //     items: [
+    //       { itemId: '1', name: 'Organic Apples', quantity: 2, price: 2.99 },
+    //       { itemId: '3', name: 'Milk 1L', quantity: 1, price: 1.99 }
+    //     ],
+    //     totalPrice: 7.97,
+    //     status: 'pending',
+    //     deliveryAddress: {
+    //       street: '123 Main St',
+    //       city: 'Cityville',
+    //       zipCode: '12345'
+    //     },
+    //     createdAt: '2025-04-26T09:30:00Z',
+    //     updatedAt: '2025-04-26T09:30:00Z'
+    //   },
+    //   {
+    //     id: '2',
+    //     userId: 'user2',
+    //     providerId: 'provider1',
+    //     items: [
+    //       { itemId: '2', name: 'Whole Wheat Bread', quantity: 1, price: 3.49 },
+    //       { itemId: '4', name: 'Chicken Breast', quantity: 2, price: 7.99 }
+    //     ],
+    //     totalPrice: 19.47,
+    //     status: 'confirmed',
+    //     deliveryAddress: {
+    //       street: '456 Oak Ave',
+    //       city: 'Townsburg',
+    //       zipCode: '67890'
+    //     },
+    //     scheduledDeliveryTime: '2025-04-27T14:00:00Z',
+    //     createdAt: '2025-04-25T15:45:00Z',
+    //     updatedAt: '2025-04-25T16:20:00Z'
+    //   },
+    //   {
+    //     id: '3',
+    //     userId: 'user3',
+    //     providerId: 'provider1',
+    //     items: [
+    //       { itemId: '5', name: 'Spinach', quantity: 1, price: 2.49 },
+    //       { itemId: '1', name: 'Organic Apples', quantity: 3, price: 2.99 }
+    //     ],
+    //     totalPrice: 11.46,
+    //     status: 'delivered',
+    //     deliveryAddress: {
+    //       street: '789 Pine Ln',
+    //       city: 'Villageton',
+    //       zipCode: '54321'
+    //     },
+    //     scheduledDeliveryTime: '2025-04-26T11:00:00Z',
+    //     createdAt: '2025-04-24T10:15:00Z',
+    //     updatedAt: '2025-04-26T11:30:00Z'
+    //   },
+    // ];
+
+
+    // const mockGeneralItems: GeneralItem[] = [
+    //   {
+    //     id: '1',
+    //     name: 'Apples',
+    //     category: 'Fruits',
+    //     brands: ['Green Farms', 'Nature\'s Best', 'Organic Valley'],
+    //     description: 'Fresh apples',
+    //   },
+    //   {
+    //     id: '2',
+    //     name: 'Bread',
+    //     category: 'Bakery',
+    //     brands: ['Healthy Bakers', 'Daily Bread', 'Fresh Loaf'],
+    //     description: 'Bread varieties',
+    //   },
+    // ];
+
+    // setItems(itemsRes);
+    // setOrders(mockOrders);
+    // setGeneralItems(mockGeneralItems);
   }, []);
-  
+
   // Filtered items and orders
   const filteredOrders = orders.filter(order => {
     const matchesStatus = orderStatusFilter === 'all' || order.status === orderStatusFilter;
-    const matchesSearch = orderSearchQuery === '' || 
+    const matchesSearch = orderSearchQuery === '' ||
       order.id.toLowerCase().includes(orderSearchQuery.toLowerCase()) ||
       order.items.some(item => item.name.toLowerCase().includes(orderSearchQuery.toLowerCase()));
     return matchesStatus && matchesSearch;
   });
-  
+
   const filteredItems = items.filter(item => {
     const matchesCategory = itemCategoryFilter === 'all' || item.category === itemCategoryFilter;
-    const matchesSearch = itemSearchQuery === '' || 
+    const matchesSearch = itemSearchQuery === '' ||
       item.name.toLowerCase().includes(itemSearchQuery.toLowerCase()) ||
       item.brand.toLowerCase().includes(itemSearchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
-  
+
   // Get unique categories for filter
   const categories = Array.from(new Set(items.map(item => item.category)));
-  
+
   // Handlers
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
     setPage(0); // Reset pagination on tab change
   };
-  
+
   const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);
   };
-  
+
   const handleChangeRowsPerPage = (event: React.ChangeEvent<HTMLInputElement>) => {
     setRowsPerPage(parseInt(event.target.value, 10));
     setPage(0);
   };
-  
+
   const handleEditItem = (item: Item) => {
     setEditingItem(item);
     setIsNewItem(false);
     setDialogOpen(true);
   };
-  
+
   const handleNewItem = () => {
     setEditingItem({ ...emptyItem } as Item);
     setIsNewItem(true);
     setDialogOpen(true);
   };
-  
+
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingItem(null);
   };
-  
+
   const handleUpdateItem = () => {
     if (!editingItem) return;
-    
+
     if (isNewItem) {
       // In a real app, this would be an API call to create
       const newItem = {
@@ -412,21 +485,21 @@ const ProviderHomePage: React.FC<ProviderHomePageProps> = (props) => {
       setItems(prev => [...prev, newItem]);
     } else {
       // In a real app, this would be an API call to update
-      setItems(prev => prev.map(item => 
+      setItems(prev => prev.map(item =>
         item.id === editingItem.id ? { ...editingItem, updatedAt: new Date().toISOString() } : item
       ));
     }
-    
+
     handleCloseDialog();
   };
-  
+
   const handleUpdateOrderStatus = (orderId: string, newStatus: string) => {
     // In a real app, this would be an API call
-    setOrders(prev => prev.map(order => 
+    setOrders(prev => prev.map(order =>
       order.id === orderId ? { ...order, status: newStatus, updatedAt: new Date().toISOString() } : order
     ));
   };
-  
+
   const handleItemInputChange = (field: keyof Item, value: any) => {
     if (editingItem) {
       setEditingItem({ ...editingItem, [field]: value });
@@ -444,14 +517,14 @@ const ProviderHomePage: React.FC<ProviderHomePageProps> = (props) => {
               <SitemarkIcon />
               <Typography variant="h4" sx={{ ml: 1 }}>Provider Dashboard</Typography>
             </Box>
-            
+
             <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
               <Tabs value={tabValue} onChange={handleTabChange} aria-label="provider tabs">
                 <Tab label="Orders" id="provider-tab-0" aria-controls="provider-tabpanel-0" />
                 <Tab label="My Products" id="provider-tab-1" aria-controls="provider-tabpanel-1" />
               </Tabs>
             </Box>
-            
+
             {/* Orders Tab */}
             <TabPanel value={tabValue} index={0}>
               <FilterCard>
@@ -493,7 +566,7 @@ const ProviderHomePage: React.FC<ProviderHomePageProps> = (props) => {
                   </Typography>
                 </Box>
               </FilterCard>
-              
+
               <TableContainer component={Paper} variant="outlined">
                 <Table>
                   <TableHead>
@@ -524,13 +597,13 @@ const ProviderHomePage: React.FC<ProviderHomePageProps> = (props) => {
                           </TableCell>
                           <TableCell align="right">${order.totalPrice.toFixed(2)}</TableCell>
                           <TableCell>
-                            <Chip 
-                              label={order.status.charAt(0).toUpperCase() + order.status.slice(1)} 
+                            <Chip
+                              label={order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                               color={
-                                order.status === 'delivered' ? 'success' : 
-                                order.status === 'confirmed' ? 'primary' :
-                                order.status === 'pending' ? 'warning' : 
-                                order.status === 'cancelled' ? 'error' : 'default'
+                                order.status === 'delivered' ? 'success' :
+                                  order.status === 'confirmed' ? 'primary' :
+                                    order.status === 'pending' ? 'warning' :
+                                      order.status === 'cancelled' ? 'error' : 'default'
                               }
                               size="small"
                             />
@@ -573,20 +646,20 @@ const ProviderHomePage: React.FC<ProviderHomePageProps> = (props) => {
                 />
               </TableContainer>
             </TabPanel>
-            
+
             {/* Products Tab */}
             <TabPanel value={tabValue} index={1}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                <Button 
-                  variant="contained" 
-                  color="primary" 
+                <Button
+                  variant="contained"
+                  color="primary"
                   startIcon={<AddIcon />}
                   onClick={handleNewItem}
                 >
                   Add New Product
                 </Button>
               </Box>
-              
+
               <FilterCard>
                 <TextField
                   label="Search Products"
@@ -624,7 +697,7 @@ const ProviderHomePage: React.FC<ProviderHomePageProps> = (props) => {
                   </Typography>
                 </Box>
               </FilterCard>
-              
+
               <TableContainer component={Paper} variant="outlined">
                 <Table>
                   <TableHead>
@@ -647,19 +720,19 @@ const ProviderHomePage: React.FC<ProviderHomePageProps> = (props) => {
                           <TableCell>{item.brand}</TableCell>
                           <TableCell align="right">${item.price.toFixed(2)}</TableCell>
                           <TableCell align="right">
-                            <Chip 
-                              label={item.availableStock} 
+                            <Chip
+                              label={item.availableStock}
                               color={
-                                item.availableStock > 20 ? 'success' : 
-                                item.availableStock > 5 ? 'warning' : 
-                                'error'
+                                item.availableStock > 20 ? 'success' :
+                                  item.availableStock > 5 ? 'warning' :
+                                    'error'
                               }
                               size="small"
                             />
                           </TableCell>
                           <TableCell>
-                            <IconButton 
-                              size="small" 
+                            <IconButton
+                              size="small"
                               color="primary"
                               onClick={() => handleEditItem(item)}
                             >
@@ -693,10 +766,10 @@ const ProviderHomePage: React.FC<ProviderHomePageProps> = (props) => {
           </Card>
         </Box>
       </Container>
-      
+
       {/* Item Edit Dialog */}
-      <Dialog 
-        open={dialogOpen} 
+      <Dialog
+        open={dialogOpen}
         onClose={handleCloseDialog}
         maxWidth="sm"
         fullWidth
@@ -712,7 +785,7 @@ const ProviderHomePage: React.FC<ProviderHomePageProps> = (props) => {
               value={editingItem?.name || ''}
               onChange={(e) => handleItemInputChange('name', e.target.value)}
             />
-            
+
             <FormControl fullWidth>
               <InputLabel id="category-select-label">Category</InputLabel>
               <Select
@@ -726,14 +799,14 @@ const ProviderHomePage: React.FC<ProviderHomePageProps> = (props) => {
                 ))}
               </Select>
             </FormControl>
-            
+
             <TextField
               label="Brand"
               fullWidth
               value={editingItem?.brand || ''}
               onChange={(e) => handleItemInputChange('brand', e.target.value)}
             />
-            
+
             <TextField
               label="Price"
               fullWidth
@@ -742,7 +815,7 @@ const ProviderHomePage: React.FC<ProviderHomePageProps> = (props) => {
               value={editingItem?.price || ''}
               onChange={(e) => handleItemInputChange('price', parseFloat(e.target.value))}
             />
-            
+
             <TextField
               label="Available Stock"
               fullWidth
@@ -750,7 +823,7 @@ const ProviderHomePage: React.FC<ProviderHomePageProps> = (props) => {
               value={editingItem?.availableStock || ''}
               onChange={(e) => handleItemInputChange('availableStock', parseInt(e.target.value))}
             />
-            
+
             <TextField
               label="Description"
               fullWidth
@@ -759,7 +832,7 @@ const ProviderHomePage: React.FC<ProviderHomePageProps> = (props) => {
               value={editingItem?.description || ''}
               onChange={(e) => handleItemInputChange('description', e.target.value)}
             />
-            
+
             <FormControl fullWidth>
               <InputLabel id="general-item-select-label">General Item</InputLabel>
               <Select
@@ -774,7 +847,7 @@ const ProviderHomePage: React.FC<ProviderHomePageProps> = (props) => {
                 ))}
               </Select>
             </FormControl>
-            
+
             <TextField
               label="Image URL"
               fullWidth

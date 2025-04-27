@@ -160,6 +160,8 @@ const MultiStepSignUp: React.FC<MultiStepSignUpProps> = (props) => {
       const user = result.user;
       const isGoogle = result.providerId === 'google.com';
       const idToken = await user.getIdToken();
+      console.log('Google Sign-In successful:', user);
+      console.log('ID Token:', idToken);
 
       setValues((prev) => ({
         ...prev,
