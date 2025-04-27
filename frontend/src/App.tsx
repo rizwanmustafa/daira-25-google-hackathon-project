@@ -3,6 +3,7 @@ import SignUp from './components/sign-up/SignUp'
 import SignIn from "./components/sign-in/SignIn"
 import { createBrowserRouter, RouterProvider } from 'react-router';
 import { AuthProvider } from './context/AuthProvider';
+import ConsumerHomePage from "./components/consumer-home-page/ConsumerHomePage";
 
 const router = createBrowserRouter([
   {
@@ -12,6 +13,10 @@ const router = createBrowserRouter([
   {
     path: "/signin",
     element: <SignIn />,
+  },
+  {
+    path: "/",
+    element: <ConsumerHomePage />,
   }
 
 ]);

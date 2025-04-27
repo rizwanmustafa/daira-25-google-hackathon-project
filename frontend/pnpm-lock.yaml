@@ -20,6 +20,12 @@ importers:
       '@mui/material':
         specifier: ^7.0.2
         version: 7.0.2(@emotion/react@11.14.0(@types/react@19.1.2)(react@19.1.0))(@emotion/styled@11.14.0(@emotion/react@11.14.0(@types/react@19.1.2)(react@19.1.0))(@types/react@19.1.2)(react@19.1.0))(@types/react@19.1.2)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@mui/system':
+        specifier: ^7.0.2
+        version: 7.0.2(@emotion/react@11.14.0(@types/react@19.1.2)(react@19.1.0))(@emotion/styled@11.14.0(@emotion/react@11.14.0(@types/react@19.1.2)(react@19.1.0))(@types/react@19.1.2)(react@19.1.0))(@types/react@19.1.2)(react@19.1.0)
+      '@mui/utils':
+        specifier: ^7.0.2
+        version: 7.0.2(@types/react@19.1.2)(react@19.1.0)
       firebase:
         specifier: ^11.6.1
         version: 11.6.1
