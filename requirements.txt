@@ -1,0 +1,15 @@
+langchain
+langchain-core
+langchain-community
+langchain-google-genai
+langgraph
+langgraph-prebuilt
+langgraph-sdk
+fastapi
+uvicorn
+langchain-groq
+python-dotenv
+pydantic
+firebase-admin
+firebase 
+scikit-learn

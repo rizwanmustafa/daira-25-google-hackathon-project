@@ -4,3 +4,5 @@ __pycache__/
 .env
 hackathon-brainsbots-firebase-admin-credentials.json
 firebase_config.py
+.env
+service_account_key.json
