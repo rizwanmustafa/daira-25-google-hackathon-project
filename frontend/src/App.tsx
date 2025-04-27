@@ -4,6 +4,7 @@ import SignIn from "./components/sign-in/SignIn"
 import { createBrowserRouter, RouterProvider } from 'react-router';
 import { AuthProvider } from './context/AuthProvider';
 import ConsumerHomePage from "./components/consumer-home-page/ConsumerHomePage";
+import ProviderHomePage from './components/provider-homepage/ProviderHomePage';
 
 const router = createBrowserRouter([
   {
@@ -15,8 +16,11 @@ const router = createBrowserRouter([
     element: <SignIn />,
   },
   {
-    path: "/",
+    path: "/consumer-home-page",
     element: <ConsumerHomePage />,
+  },{
+    path: "/provider-home-page",
+    element: <ProviderHomePage/>,
   }
 
 ]);
